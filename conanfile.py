@@ -1,3 +1,4 @@
+import glob
 import os
 
 from conans import ConanFile, CMake, tools
@@ -10,8 +11,8 @@ class CfitsioConan(ConanFile):
     topics = ("conan", "cfitsio", "fits", "image", "nasa", "astronomy", "astrophysics", "space")
     homepage = "https://heasarc.gsfc.nasa.gov/fitsio/"
     url = "https://github.com/conan-io/conan-center-index"
-    exports_sources = 'CMakeLists.txt'
-    generators = 'cmake'
+    exports_sources = "CMakeLists.txt"
+    generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
@@ -49,10 +50,10 @@ class CfitsioConan(ConanFile):
         del self.settings.compiler.cppstd
 
     def requirements(self):
-        self.requires("libcurl/7.68.0")
-        self.requires("zlib/1.2.11")
-        if self.options.with_phread and self.settings.os == "Windows":
-            self.requires("pthreads4w/3.0.0")
+        self.requires.add("libcurl/7.68.0")
+        self.requires.add("zlib/1.2.11")
+        if self.options.with_pthread and self.settings.os == "Windows":
+            self.requires.add("pthreads4w/3.0.0")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
@@ -60,7 +61,9 @@ class CfitsioConan(ConanFile):
         os.rename(extracted_dir, self._source_subfolder)
 
     def build(self):
-        tools.rmdir(os.path.join(self._source_subfolder, "zlib"))
+        for zlib_file in glob.glob(os.path.join(self._source_subfolder, "zlib", "*")):
+            if not zlib_file.endswith(("zcompress.c", "zuncompress.c")):
+                os.remove(zlib_file)
         cmake = self._configure_cmake()
         cmake.build()
 
@@ -68,7 +71,7 @@ class CfitsioConan(ConanFile):
         if self._cmake:
             return self._cmake
         self._cmake = CMake(self)
-        self._cmake.definitions["USE_PTHREADS"] = self.options.with_phread
+        self._cmake.definitions["USE_PTHREADS"] = self.options.with_pthread
         self._cmake.configure(build_folder=self._build_subfolder)
         return self._cmake
 
@@ -76,11 +79,11 @@ class CfitsioConan(ConanFile):
         self.copy("License.txt", dst="licenses", src=self._source_subfolder)
         cmake = self._configure_cmake()
         cmake.install()
-        tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
+        # tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
 
     def package_info(self):
         self.cpp_info.libs = tools.collect_libs(self)
         if self.settings.os == "Linux":
             self.cpp_info.system_libs.append("m")
-            if self.options.with_phread:
+            if self.options.with_pthread:
                 self.cpp_info.system_libs.append("pthread")
