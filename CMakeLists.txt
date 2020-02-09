@@ -20,6 +20,7 @@ INCLUDE (${CMAKE_ROOT}/Modules/CheckLibraryExists.cmake)
 INCLUDE (${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
 
 OPTION (USE_PTHREADS "Thread-safe build (using pthreads)" OFF)
+OPTION (USE_BZIP2 "" OFF)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}")
 set (LIB_DESTINATION "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
@@ -49,22 +50,20 @@ IF(BORLAND)
     ADD_DEFINITIONS(-w-csu)
 ENDIF()
 
-#add_subdirectory (src)
-
-SET (LIB_TYPE STATIC)
-IF (BUILD_SHARED_LIBS)
-  SET (LIB_TYPE SHARED)
-ENDIF (BUILD_SHARED_LIBS)
-
-FILE(GLOB H_FILES "source_subfolder/*.h")
-
 SET(CFITSIO_LINK_LIBS "")
 
 LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::zlib")
 
 IF (USE_PTHREADS)
-    LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::pthreads4w")
+    IF (MSVC OR MINGW)
+        LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::pthreads4w")
+    ENDIF()
     ADD_DEFINITIONS(-D_REENTRANT)
+ENDIF()
+
+IF (USE_BZIP2)
+    LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::bzip2")
+    ADD_DEFINITIONS(-DHAVE_BZIP2)
 ENDIF()
 
 # Math library (not available in MSVC or MINGW)
@@ -114,7 +113,7 @@ SET(SRC_FILES
     source_subfolder/wcssub.c source_subfolder/wcsutil.c source_subfolder/zlib/zcompress.c source_subfolder/zlib/zuncompress.c
 )
 
-ADD_LIBRARY(${LIB_NAME} ${LIB_TYPE} ${H_FILES} ${SRC_FILES})
+ADD_LIBRARY(${LIB_NAME} ${SRC_FILES})
 TARGET_LINK_LIBRARIES(${LIB_NAME} ${M_LIB} ${CFITSIO_LINK_LIBS})
 
 SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES VERSION ${${PROJECT_NAME}_VERSION} SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION})
@@ -123,4 +122,6 @@ install(TARGETS ${LIB_NAME}
                             RUNTIME DESTINATION bin
                             LIBRARY DESTINATION lib
                             ARCHIVE DESTINATION lib)
+
+FILE(GLOB H_FILES source_subfolder/fitsio.h source_subfolder/longnam.h)
 install(FILES ${H_FILES} DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)

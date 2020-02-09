@@ -17,12 +17,14 @@ class CfitsioConan(ConanFile):
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
-        "with_pthread": [True, False]
+        "with_bzip2": [True, False],
+        "thread_safe": [True, False]
     }
     default_options = {
         "shared": False,
         "fPIC": True,
-        "with_pthread": False
+        "with_bzip2": True,
+        "thread_safe": False
     }
 
     _cmake = None
@@ -50,10 +52,13 @@ class CfitsioConan(ConanFile):
         del self.settings.compiler.cppstd
 
     def requirements(self):
-        self.requires.add("libcurl/7.68.0")
         self.requires.add("zlib/1.2.11")
-        if self.options.with_pthread and self.settings.os == "Windows":
+        if self.options.with_bzip2:
+            self.requires.add("bzip2/1.0.8")
+        if self.options.thread_safe and self.settings.os == "Windows":
             self.requires.add("pthreads4w/3.0.0")
+        if self.settings.os != "Windows":
+            self.requires.add("libcurl/7.68.0")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
@@ -64,6 +69,13 @@ class CfitsioConan(ConanFile):
         for zlib_file in glob.glob(os.path.join(self._source_subfolder, "zlib", "*")):
             if not zlib_file.endswith(("zcompress.c", "zuncompress.c")):
                 os.remove(zlib_file)
+        tools.replace_in_file(os.path.join(self._source_subfolder, "fitsio2.h"),
+                              "#define ffstrtok(str, tok, save) strtok_r(str, tok, save)",
+                              "#ifdef _MSC_VER\n" \
+                              "#define ffstrtok(str, tok, save) strtok_s(str, tok, save)\n" \
+                              "#else\n" \
+                              "#define ffstrtok(str, tok, save) strtok_r(str, tok, save)\n" \
+                              "#endif")
         cmake = self._configure_cmake()
         cmake.build()
 
@@ -71,7 +83,8 @@ class CfitsioConan(ConanFile):
         if self._cmake:
             return self._cmake
         self._cmake = CMake(self)
-        self._cmake.definitions["USE_PTHREADS"] = self.options.with_pthread
+        self._cmake.definitions["USE_PTHREADS"] = self.options.thread_safe
+        self._cmake.definitions["USE_BZIP2"] = self.options.with_bzip2
         self._cmake.configure(build_folder=self._build_subfolder)
         return self._cmake
 
@@ -85,5 +98,5 @@ class CfitsioConan(ConanFile):
         self.cpp_info.libs = tools.collect_libs(self)
         if self.settings.os == "Linux":
             self.cpp_info.system_libs.append("m")
-            if self.options.with_pthread:
+            if self.options.thread_safe:
                 self.cpp_info.system_libs.append("pthread")
