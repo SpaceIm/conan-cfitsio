@@ -95,7 +95,7 @@ class CfitsioConan(ConanFile):
         self._cmake.definitions["MAJOR_VERSION"] = str(self.version)[0]
         self._cmake.definitions["MINOR_VERSION"] = str(self.version)[2:4]
         self._cmake.definitions["CFITSIO_USE_PTHREADS"] = self.options.threadsafe
-        self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.simd_intrinsics in ["sse2", "ssse3"]
+        self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.simd_intrinsics == "sse2"
         self._cmake.definitions["CFITSIO_USE_SSSE3"] = self.options.simd_intrinsics == "ssse3"
         if self.settings.os != "Windows":
             self._cmake.definitions["CFITSIO_USE_BZIP2"] = self.options.with_bzip2
