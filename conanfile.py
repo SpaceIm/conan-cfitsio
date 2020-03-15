@@ -11,7 +11,7 @@ class CfitsioConan(ConanFile):
     topics = ("conan", "cfitsio", "fits", "image", "nasa", "astronomy", "astrophysics", "space")
     homepage = "https://heasarc.gsfc.nasa.gov/fitsio/"
     url = "https://github.com/conan-io/conan-center-index"
-    exports_sources = "CMakeLists.txt"
+    exports_sources = ["CMakeLists.txt", "patches/**"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
     options = {
@@ -28,7 +28,7 @@ class CfitsioConan(ConanFile):
         "threadsafe": False,
         "simd_intrinsics": None,
         "with_bzip2": False,
-        "with_curl": True
+        "with_curl": False
     }
 
     _cmake = None
@@ -69,24 +69,17 @@ class CfitsioConan(ConanFile):
         os.rename(extracted_dir, self._source_subfolder)
 
     def build(self):
-        self._remove_embedded_zlib()
         self._patch_sources()
         cmake = self._configure_cmake()
         cmake.build()
 
-    def _remove_embedded_zlib(self):
+    def _patch_sources(self):
+        for patch in self.conan_data["patches"][self.version]:
+            tools.patch(**patch)
+        # Remove embedded zlib files
         for zlib_file in glob.glob(os.path.join(self._source_subfolder, "zlib", "*")):
             if not zlib_file.endswith(("zcompress.c", "zuncompress.c")):
                 os.remove(zlib_file)
-
-    def _patch_sources(self):
-        tools.replace_in_file(os.path.join(self._source_subfolder, "fitsio2.h"),
-                              "#define ffstrtok(str, tok, save) strtok_r(str, tok, save)",
-                              "#ifdef _WIN32\n" \
-                              "#define ffstrtok(str, tok, save) strtok_s(str, tok, save)\n" \
-                              "#else\n" \
-                              "#define ffstrtok(str, tok, save) strtok_r(str, tok, save)\n" \
-                              "#endif")
 
     def _configure_cmake(self):
         if self._cmake:
