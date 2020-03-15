@@ -23,22 +23,16 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}")
 set(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/include/cfitsio")
 
 # Define project version
-set(${PROJECT_NAME}_MAJOR_VERSION 3)
-set(${PROJECT_NAME}_MINOR_VERSION 47)
+set(${PROJECT_NAME}_MAJOR_VERSION ${MAJOR_VERSION})
+set(${PROJECT_NAME}_MINOR_VERSION ${MINOR_VERSION})
 set(${PROJECT_NAME}_VERSION ${${PROJECT_NAME}_MAJOR_VERSION}.${${PROJECT_NAME}_MINOR_VERSION})
 set(LIB_NAME cfitsio)
 
-# Microsoft Visual Studio:
 if(MSVC OR BORLAND)
-  # Define
   add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
   # Need an empty unistd.h in MSVC for flex-generated eval_l.c:
   file(WRITE ${CMAKE_SOURCE_DIR}/unistd.h "")
   include_directories(${CMAKE_SOURCE_DIR})
-endif()
-
-if(WIN32 AND BUILD_SHARED_LIBS)
-  add_definitions(-Dcfitsio_EXPORTS)
 endif()
 
 if(BORLAND)
@@ -67,16 +61,16 @@ if(USE_PTHREADS)
 endif()
 
 if(NOT WIN32)
-  option(USE_BZIP2 "" OFF)
+  option(USE_BZIP2 "Enable bzip2 support" OFF)
   if(USE_BZIP2)
     list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::bzip2")
-    add_definitions(-DHAVE_BZIP2)
+    add_definitions(-DHAVE_BZIP2=1)
   endif()
 endif()
 
 # Support for remote file drivers is not implemented for native Windows:
 if(NOT WIN32)
-  option(USE_CURL "" ON)
+  option(USE_CURL "Enable remote file i/o support" ON)
   if(USE_CURL)
     # Find library needed for gethostbyname:
     CHECK_FUNCTION_EXISTS("gethostbyname" CMAKE_HAVE_GETHOSTBYNAME)
@@ -173,12 +167,19 @@ if(UNIX)
 endif()
 
 add_library(${LIB_NAME} ${SRC_FILES})
-target_link_libraries(${LIB_NAME} ${M_LIB} ${CFITSIO_LINK_LIBS})
+target_link_libraries(${LIB_NAME} ${CFITSIO_LINK_LIBS})
 find_library(M_LIB m)
 if(M_LIB)
   target_link_libraries(${LIB_NAME} ${M_LIB})
 endif()
-set_target_properties(${LIB_NAME} PROPERTIES VERSION ${${PROJECT_NAME}_VERSION} SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION})
+set_target_properties(${LIB_NAME}
+  PROPERTIES
+    VERSION ${${PROJECT_NAME}_VERSION}
+    SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION}
+)
+if(WIN32 AND BUILD_SHARED_LIBS)
+  target_compile_definitions(${LIB_NAME} PRIVATE "cfitsio_EXPORTS")
+endif()
 
 install(TARGETS ${LIB_NAME}
   RUNTIME DESTINATION bin
@@ -186,8 +187,8 @@ install(TARGETS ${LIB_NAME}
   ARCHIVE DESTINATION lib
 )
 
-file(GLOB H_FILES ${SOURCE_DIR}/fitsio.h ${SOURCE_DIR}/longnam.h)
+set(HEADER_FILES ${SOURCE_DIR}/fitsio.h ${SOURCE_DIR}/longnam.h)
 if(UNIX)
-  list(APPEND SRC_FILES ${SOURCE_DIR}/drvrsmem.h)
+  list(APPEND HEADER_FILES ${SOURCE_DIR}/drvrsmem.h)
 endif()
-install(FILES ${H_FILES} DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
+install(FILES ${HEADER_FILES} DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)

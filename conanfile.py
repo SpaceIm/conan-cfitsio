@@ -39,12 +39,6 @@ class CfitsioConan(ConanFile):
     def _build_subfolder(self):
         return "build_subfolder"
 
-    @property
-    def _suffix_source_file(self):
-        return {
-            "3.470": "3.47"
-        }
-
     def config_options(self):
         if self.settings.os == "Windows":
             del self.options.fPIC
@@ -68,7 +62,8 @@ class CfitsioConan(ConanFile):
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
-        extracted_dir = self.name + "-" + self._suffix_source_file.get(str(self.version))
+        url = self.conan_data["sources"][self.version]["url"]
+        extracted_dir = os.path.basename(url).replace(".tar.gz", "").replace(".zip", "")
         os.rename(extracted_dir, self._source_subfolder)
 
     def build(self):
@@ -95,6 +90,8 @@ class CfitsioConan(ConanFile):
         if self._cmake:
             return self._cmake
         self._cmake = CMake(self)
+        self._cmake.definitions["MAJOR_VERSION"] = str(self.version)[0]
+        self._cmake.definitions["MINOR_VERSION"] = str(self.version)[2:4]
         self._cmake.definitions["USE_PTHREADS"] = self.options.threadsafe
         if self.settings.os != "Windows":
             self._cmake.definitions["USE_BZIP2"] = self.options.with_bzip2
