@@ -18,6 +18,7 @@ class CfitsioConan(ConanFile):
         "shared": [True, False],
         "fPIC": [True, False],
         "threadsafe": [True, False],
+        "simd_intrinsics": [None, "sse2", "ssse3"],
         "with_bzip2": [True, False],
         "with_curl": [True, False]
     }
@@ -25,6 +26,7 @@ class CfitsioConan(ConanFile):
         "shared": False,
         "fPIC": True,
         "threadsafe": False,
+        "simd_intrinsics": None,
         "with_bzip2": False,
         "with_curl": True
     }
@@ -92,10 +94,12 @@ class CfitsioConan(ConanFile):
         self._cmake = CMake(self)
         self._cmake.definitions["MAJOR_VERSION"] = str(self.version)[0]
         self._cmake.definitions["MINOR_VERSION"] = str(self.version)[2:4]
-        self._cmake.definitions["USE_PTHREADS"] = self.options.threadsafe
+        self._cmake.definitions["CFITSIO_USE_PTHREADS"] = self.options.threadsafe
+        self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.simd_intrinsics in ["sse2", "ssse3"]
+        self._cmake.definitions["CFITSIO_USE_SSSE3"] = self.options.simd_intrinsics == "ssse3"
         if self.settings.os != "Windows":
-            self._cmake.definitions["USE_BZIP2"] = self.options.with_bzip2
-            self._cmake.definitions["USE_CURL"] = self.options.with_curl
+            self._cmake.definitions["CFITSIO_USE_BZIP2"] = self.options.with_bzip2
+            self._cmake.definitions["CFITSIO_USE_CURL"] = self.options.with_curl
         self._cmake.configure(build_folder=self._build_subfolder)
         return self._cmake
 
@@ -103,7 +107,6 @@ class CfitsioConan(ConanFile):
         self.copy("License.txt", dst="licenses", src=self._source_subfolder)
         cmake = self._configure_cmake()
         cmake.install()
-        # tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
 
     def package_info(self):
         self.cpp_info.libs = tools.collect_libs(self)

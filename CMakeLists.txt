@@ -16,6 +16,10 @@ if(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
 endif()
 
+option(CFITSIO_USE_PTHREADS "Thread-safe build (using pthreads)" OFF)
+option(CFITSIO_USE_SSE2 "Enable use of instructions in the SSE2 extended instruction set" OFF)
+option(CFITSIO_USE_SSSE3 "Enable use of instructions in the SSSE3 extended instruction set" OFF)
+
 include(${CMAKE_ROOT}/Modules/CheckLibraryExists.cmake)
 include(${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
 
@@ -27,73 +31,6 @@ set(${PROJECT_NAME}_MAJOR_VERSION ${MAJOR_VERSION})
 set(${PROJECT_NAME}_MINOR_VERSION ${MINOR_VERSION})
 set(${PROJECT_NAME}_VERSION ${${PROJECT_NAME}_MAJOR_VERSION}.${${PROJECT_NAME}_MINOR_VERSION})
 set(LIB_NAME cfitsio)
-
-if(MSVC OR BORLAND)
-  add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
-  # Need an empty unistd.h in MSVC for flex-generated eval_l.c:
-  file(WRITE ${CMAKE_SOURCE_DIR}/unistd.h "")
-  include_directories(${CMAKE_SOURCE_DIR})
-endif()
-
-if(BORLAND)
-  # Suppress spurious Borland compiler warnings about "Suspicious
-  # pointer arithmetic", "Possibly incorrect assignment", and
-  # "Comparing signed and unsigned values".
-  add_definitions(-w-spa)
-  add_definitions(-w-pia)
-  add_definitions(-w-csu)
-endif()
-
-set(CFITSIO_LINK_LIBS "")
-
-list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::zlib")
-
-option(USE_PTHREADS "Thread-safe build (using pthreads)" OFF)
-if(USE_PTHREADS)
-  if(MSVC)
-    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::pthreads4w")
-  else()
-    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-    find_package(Threads REQUIRED)
-    list(APPEND CFITSIO_LINK_LIBS "Threads::Threads")
-  endif()
-  add_definitions(-D_REENTRANT)
-endif()
-
-if(NOT WIN32)
-  option(USE_BZIP2 "Enable bzip2 support" OFF)
-  if(USE_BZIP2)
-    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::bzip2")
-    add_definitions(-DHAVE_BZIP2=1)
-  endif()
-endif()
-
-# Support for remote file drivers is not implemented for native Windows:
-if(NOT WIN32)
-  option(USE_CURL "Enable remote file i/o support" ON)
-  if(USE_CURL)
-    # Find library needed for gethostbyname:
-    CHECK_FUNCTION_EXISTS("gethostbyname" CMAKE_HAVE_GETHOSTBYNAME)
-    if(NOT CMAKE_HAVE_GETHOSTBYNAME)
-      CHECK_LIBRARY_EXISTS("nsl" "gethostbyname" "" CMAKE_HAVE_GETHOSTBYNAME)
-    endif()
-
-    # Find library needed for connect:
-    CHECK_FUNCTION_EXISTS("connect" CMAKE_HAVE_CONNECT)
-    if(NOT CMAKE_HAVE_CONNECT)
-      CHECK_LIBRARY_EXISTS("socket" "connect" "" CMAKE_HAVE_CONNECT)
-    endif()
-
-    # Define HAVE_NET_SERVICES if gethostbyname & connect were found:
-    if(CMAKE_HAVE_GETHOSTBYNAME AND CMAKE_HAVE_CONNECT)
-      add_definitions(-DHAVE_NET_SERVICES)
-    endif()
-
-    # Find curl library, for HTTPS support:
-    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::libcurl")
-    add_definitions(-DCFITSIO_HAVE_CURL)
-  endif()
-endif()
 
 set(SOURCE_DIR "source_subfolder")
 set(SRC_FILES
@@ -167,19 +104,105 @@ if(UNIX)
 endif()
 
 add_library(${LIB_NAME} ${SRC_FILES})
-target_link_libraries(${LIB_NAME} ${CFITSIO_LINK_LIBS})
+
+if(MSVC OR BORLAND)
+  target_compile_definitions(${LIB_NAME} PRIVATE "_CRT_SECURE_NO_DEPRECATE")
+  # Need an empty unistd.h in MSVC for flex-generated eval_l.c:
+  file(WRITE ${CMAKE_SOURCE_DIR}/unistd.h "")
+  target_include_directories(${LIB_NAME} PRIVATE ${CMAKE_SOURCE_DIR})
+endif()
+
+if(BORLAND)
+  # Suppress spurious Borland compiler warnings about "Suspicious
+  # pointer arithmetic", "Possibly incorrect assignment", and
+  # "Comparing signed and unsigned values".
+  target_compile_options(${LIB_NAME} PRIVATE -w-spa -w-pia -w-csu)
+endif()
+
 find_library(M_LIB m)
 if(M_LIB)
-  target_link_libraries(${LIB_NAME} ${M_LIB})
+  target_link_libraries(${LIB_NAME} PRIVATE ${M_LIB})
 endif()
+
+target_link_libraries(${LIB_NAME} PRIVATE CONAN_PKG::zlib)
+
+if(CFITSIO_USE_PTHREADS)
+  if(MSVC)
+    target_link_libraries(${LIB_NAME} PRIVATE CONAN_PKG::pthreads4w)
+  else()
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    find_package(Threads REQUIRED)
+    target_link_libraries(${LIB_NAME} PRIVATE Threads::Threads)
+  endif()
+  target_compile_definitions(${LIB_NAME} PRIVATE "_REENTRANT")
+endif()
+
+if(CFITSIO_USE_SSE2)
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+      target_compile_options(${LIB_NAME} PRIVATE -msse2)
+  endif()
+  if(MSVC)
+    target_compile_definitions(${LIB_NAME} PRIVATE "__SSE2__")
+  endif()
+endif()
+
+if(CFITSIO_USE_SSSE3)
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR
+     "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+      target_compile_options(${LIB_NAME} PRIVATE -mssse3)
+  endif()
+  if(MSVC)
+    target_compile_definitions(${LIB_NAME} PRIVATE "__SSSE3__")
+  endif()
+endif()
+
+if(NOT WIN32)
+  option(CFITSIO_USE_BZIP2 "Enable bzip2 support" OFF)
+  if(CFITSIO_USE_BZIP2)
+    target_link_libraries(${LIB_NAME} PRIVATE CONAN_PKG::bzip2)
+    target_compile_definitions(${LIB_NAME} PRIVATE "HAVE_BZIP2=1")
+  endif()
+endif()
+
+# Support for remote file drivers is not implemented for native Windows:
+if(NOT WIN32)
+  option(CFITSIO_USE_CURL "Enable remote file i/o support" ON)
+  if(CFITSIO_USE_CURL)
+    # Find library needed for gethostbyname:
+    check_function_exists("gethostbyname" CMAKE_HAVE_GETHOSTBYNAME)
+    if(NOT CMAKE_HAVE_GETHOSTBYNAME)
+      check_library_exists("nsl" "gethostbyname" "" CMAKE_HAVE_GETHOSTBYNAME)
+    endif()
+
+    # Find library needed for connect:
+    check_function_exists("connect" CMAKE_HAVE_CONNECT)
+    if(NOT CMAKE_HAVE_CONNECT)
+      check_library_exists("socket" "connect" "" CMAKE_HAVE_CONNECT)
+    endif()
+
+    # Define HAVE_NET_SERVICES if gethostbyname & connect were found:
+    if(CMAKE_HAVE_GETHOSTBYNAME AND CMAKE_HAVE_CONNECT)
+      target_compile_definitions(${LIB_NAME} PRIVATE "HAVE_NET_SERVICES")
+    endif()
+
+    # Find curl library, for HTTPS support:
+    target_link_libraries(${LIB_NAME} PRIVATE CONAN_PKG::libcurl)
+    target_compile_definitions(${LIB_NAME} PRIVATE "CFITSIO_HAVE_CURL")
+  endif()
+endif()
+
+if(WIN32 AND BUILD_SHARED_LIBS)
+  target_compile_definitions(${LIB_NAME} PRIVATE "cfitsio_EXPORTS")
+endif()
+
 set_target_properties(${LIB_NAME}
   PROPERTIES
     VERSION ${${PROJECT_NAME}_VERSION}
     SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION}
 )
-if(WIN32 AND BUILD_SHARED_LIBS)
-  target_compile_definitions(${LIB_NAME} PRIVATE "cfitsio_EXPORTS")
-endif()
 
 install(TARGETS ${LIB_NAME}
   RUNTIME DESTINATION bin
