@@ -186,8 +186,8 @@ install(TARGETS ${LIB_NAME}
   ARCHIVE DESTINATION lib
 )
 
-file(GLOB H_FILES source_subfolder/fitsio.h source_subfolder/longnam.h)
+file(GLOB H_FILES ${SOURCE_DIR}/fitsio.h ${SOURCE_DIR}/longnam.h)
 if(UNIX)
-  list(APPEND SRC_FILES drvrsmem.h)
+  list(APPEND SRC_FILES ${SOURCE_DIR}/drvrsmem.h)
 endif()
 install(FILES ${H_FILES} DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
