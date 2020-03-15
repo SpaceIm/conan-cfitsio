@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.1.2)
-PROJECT(CFITSIO)
+project(CFITSIO)
 
 if(EXISTS "${CMAKE_BINARY_DIR}/conanbuildinfo.cmake")
   include("${CMAKE_BINARY_DIR}/conanbuildinfo.cmake")
@@ -8,120 +8,186 @@ else()
 endif()
 conan_basic_setup(TARGETS)
 
-SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
+set(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 # Allow @rpath token in target install name on Macs.
 # See "cmake --help-policy CMP0042" for more information.
-IF(POLICY CMP0042)
-  CMAKE_POLICY(SET CMP0042 NEW)
-ENDIF()
+if(POLICY CMP0042)
+  cmake_policy(SET CMP0042 NEW)
+endif()
 
-INCLUDE (${CMAKE_ROOT}/Modules/CheckLibraryExists.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
-
-OPTION (USE_PTHREADS "Thread-safe build (using pthreads)" OFF)
-OPTION (USE_BZIP2 "" OFF)
+include(${CMAKE_ROOT}/Modules/CheckLibraryExists.cmake)
+include(${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}")
-set (LIB_DESTINATION "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
-set (INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/include/")
+set(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/include/cfitsio")
 
 # Define project version
-SET(${PROJECT_NAME}_MAJOR_VERSION 3)
-SET(${PROJECT_NAME}_MINOR_VERSION 47)
-SET(${PROJECT_NAME}_VERSION ${${PROJECT_NAME}_MAJOR_VERSION}.${${PROJECT_NAME}_MINOR_VERSION})
-SET(LIB_NAME cfitsio)
+set(${PROJECT_NAME}_MAJOR_VERSION 3)
+set(${PROJECT_NAME}_MINOR_VERSION 47)
+set(${PROJECT_NAME}_VERSION ${${PROJECT_NAME}_MAJOR_VERSION}.${${PROJECT_NAME}_MINOR_VERSION})
+set(LIB_NAME cfitsio)
 
 # Microsoft Visual Studio:
-IF(MSVC OR BORLAND)
-    # Define
-    ADD_DEFINITIONS(-D_CRT_SECURE_NO_DEPRECATE)
-    # Need an empty unistd.h in MSVC for flex-generated eval_l.c:
-    FILE(WRITE ${CMAKE_SOURCE_DIR}/unistd.h "")
-    INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR})
-ENDIF()
+if(MSVC OR BORLAND)
+  # Define
+  add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
+  # Need an empty unistd.h in MSVC for flex-generated eval_l.c:
+  file(WRITE ${CMAKE_SOURCE_DIR}/unistd.h "")
+  include_directories(${CMAKE_SOURCE_DIR})
+endif()
 
-IF(BORLAND)
-    # Suppress spurious Borland compiler warnings about "Suspicious
-    # pointer arithmetic", "Possibly incorrect assignment", and
-    # "Comparing signed and unsigned values".
-    ADD_DEFINITIONS(-w-spa)
-    ADD_DEFINITIONS(-w-pia)
-    ADD_DEFINITIONS(-w-csu)
-ENDIF()
+if(WIN32 AND BUILD_SHARED_LIBS)
+  add_definitions(-Dcfitsio_EXPORTS)
+endif()
 
-SET(CFITSIO_LINK_LIBS "")
+if(BORLAND)
+  # Suppress spurious Borland compiler warnings about "Suspicious
+  # pointer arithmetic", "Possibly incorrect assignment", and
+  # "Comparing signed and unsigned values".
+  add_definitions(-w-spa)
+  add_definitions(-w-pia)
+  add_definitions(-w-csu)
+endif()
 
-LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::zlib")
+set(CFITSIO_LINK_LIBS "")
 
-IF (USE_PTHREADS)
-    IF (MSVC OR MINGW)
-        LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::pthreads4w")
-    ENDIF()
-    ADD_DEFINITIONS(-D_REENTRANT)
-ENDIF()
+list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::zlib")
 
-IF (USE_BZIP2)
-    LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::bzip2")
-    ADD_DEFINITIONS(-DHAVE_BZIP2)
-ENDIF()
+option(USE_PTHREADS "Thread-safe build (using pthreads)" OFF)
+if(USE_PTHREADS)
+  if(MSVC)
+    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::pthreads4w")
+  else()
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    find_package(Threads REQUIRED)
+    list(APPEND CFITSIO_LINK_LIBS "Threads::Threads")
+  endif()
+  add_definitions(-D_REENTRANT)
+endif()
 
-# Math library (not available in MSVC or MINGW)
-IF (MSVC OR MINGW)
-    SET(M_LIB "")
-ELSE()
-    FIND_LIBRARY(M_LIB m)
-ENDIF()
+if(NOT WIN32)
+  option(USE_BZIP2 "" OFF)
+  if(USE_BZIP2)
+    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::bzip2")
+    add_definitions(-DHAVE_BZIP2)
+  endif()
+endif()
 
 # Support for remote file drivers is not implemented for native Windows:
-IF (NOT MSVC)
+if(NOT WIN32)
+  option(USE_CURL "" ON)
+  if(USE_CURL)
     # Find library needed for gethostbyname:
     CHECK_FUNCTION_EXISTS("gethostbyname" CMAKE_HAVE_GETHOSTBYNAME)
-    IF(NOT CMAKE_HAVE_GETHOSTBYNAME)
-       CHECK_LIBRARY_EXISTS("nsl" "gethostbyname" "" CMAKE_HAVE_GETHOSTBYNAME)
-    ENDIF()
+    if(NOT CMAKE_HAVE_GETHOSTBYNAME)
+      CHECK_LIBRARY_EXISTS("nsl" "gethostbyname" "" CMAKE_HAVE_GETHOSTBYNAME)
+    endif()
 
     # Find library needed for connect:
     CHECK_FUNCTION_EXISTS("connect" CMAKE_HAVE_CONNECT)
-    IF(NOT CMAKE_HAVE_CONNECT)
-       CHECK_LIBRARY_EXISTS("socket" "connect" "" CMAKE_HAVE_CONNECT)
-    ENDIF()
+    if(NOT CMAKE_HAVE_CONNECT)
+      CHECK_LIBRARY_EXISTS("socket" "connect" "" CMAKE_HAVE_CONNECT)
+    endif()
 
     # Define HAVE_NET_SERVICES if gethostbyname & connect were found:
-    IF (CMAKE_HAVE_GETHOSTBYNAME AND CMAKE_HAVE_CONNECT)
-        ADD_DEFINITIONS(-DHAVE_NET_SERVICES)
-    ENDIF ()
+    if(CMAKE_HAVE_GETHOSTBYNAME AND CMAKE_HAVE_CONNECT)
+      add_definitions(-DHAVE_NET_SERVICES)
+    endif()
 
     # Find curl library, for HTTPS support:
-    LIST(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::libcurl")
-    ADD_DEFINITIONS(-DCFITSIO_HAVE_CURL)
-ENDIF()
+    list(APPEND CFITSIO_LINK_LIBS "CONAN_PKG::libcurl")
+    add_definitions(-DCFITSIO_HAVE_CURL)
+  endif()
+endif()
 
-SET(SRC_FILES
-    source_subfolder/buffers.c source_subfolder/cfileio.c source_subfolder/checksum.c
-    source_subfolder/drvrfile.c source_subfolder/drvrmem.c source_subfolder/drvrnet.c
-    source_subfolder/editcol.c source_subfolder/edithdu.c source_subfolder/eval_f.c source_subfolder/eval_l.c source_subfolder/eval_y.c
-    source_subfolder/f77_wrap1.c source_subfolder/f77_wrap2.c source_subfolder/f77_wrap3.c source_subfolder/f77_wrap4.c
-    source_subfolder/fits_hcompress.c source_subfolder/fits_hdecompress.c source_subfolder/fitscore.c
-    source_subfolder/getcol.c source_subfolder/getcolb.c source_subfolder/getcold.c source_subfolder/getcole.c source_subfolder/getcoli.c source_subfolder/getcolj.c source_subfolder/getcolk.c
-    source_subfolder/getcoll.c source_subfolder/getcols.c source_subfolder/getcolsb.c source_subfolder/getcolui.c source_subfolder/getcoluj.c source_subfolder/getcoluk.c
-    source_subfolder/getkey.c source_subfolder/group.c source_subfolder/grparser.c source_subfolder/histo.c source_subfolder/imcompress.c source_subfolder/iraffits.c source_subfolder/modkey.c
-    source_subfolder/pliocomp.c
-    source_subfolder/putcol.c source_subfolder/putcolb.c source_subfolder/putcold.c source_subfolder/putcole.c source_subfolder/putcoli.c source_subfolder/putcolj.c source_subfolder/putcolk.c
-    source_subfolder/putcoll.c source_subfolder/putcols.c source_subfolder/putcolsb.c source_subfolder/putcolu.c source_subfolder/putcolui.c source_subfolder/putcoluj.c source_subfolder/putcoluk.c
-    source_subfolder/putkey.c source_subfolder/quantize.c source_subfolder/region.c source_subfolder/ricecomp.c source_subfolder/scalnull.c source_subfolder/simplerng.c source_subfolder/swapproc.c
-    source_subfolder/wcssub.c source_subfolder/wcsutil.c source_subfolder/zlib/zcompress.c source_subfolder/zlib/zuncompress.c
+set(SOURCE_DIR "source_subfolder")
+set(SRC_FILES
+  ${SOURCE_DIR}/buffers.c
+  ${SOURCE_DIR}/cfileio.c
+  ${SOURCE_DIR}/checksum.c
+  ${SOURCE_DIR}/drvrfile.c
+  ${SOURCE_DIR}/drvrmem.c
+  ${SOURCE_DIR}/drvrnet.c
+  ${SOURCE_DIR}/editcol.c
+  ${SOURCE_DIR}/edithdu.c
+  ${SOURCE_DIR}/eval_f.c
+  ${SOURCE_DIR}/eval_l.c
+  ${SOURCE_DIR}/eval_y.c
+  ${SOURCE_DIR}/f77_wrap1.c
+  ${SOURCE_DIR}/f77_wrap2.c
+  ${SOURCE_DIR}/f77_wrap3.c
+  ${SOURCE_DIR}/f77_wrap4.c
+  ${SOURCE_DIR}/fits_hcompress.c
+  ${SOURCE_DIR}/fits_hdecompress.c
+  ${SOURCE_DIR}/fitscore.c
+  ${SOURCE_DIR}/getcol.c
+  ${SOURCE_DIR}/getcolb.c
+  ${SOURCE_DIR}/getcold.c
+  ${SOURCE_DIR}/getcole.c
+  ${SOURCE_DIR}/getcoli.c
+  ${SOURCE_DIR}/getcolj.c
+  ${SOURCE_DIR}/getcolk.c
+  ${SOURCE_DIR}/getcoll.c
+  ${SOURCE_DIR}/getcols.c
+  ${SOURCE_DIR}/getcolsb.c
+  ${SOURCE_DIR}/getcolui.c
+  ${SOURCE_DIR}/getcoluj.c
+  ${SOURCE_DIR}/getcoluk.c
+  ${SOURCE_DIR}/getkey.c
+  ${SOURCE_DIR}/group.c
+  ${SOURCE_DIR}/grparser.c
+  ${SOURCE_DIR}/histo.c
+  ${SOURCE_DIR}/imcompress.c
+  ${SOURCE_DIR}/iraffits.c
+  ${SOURCE_DIR}/modkey.c
+  ${SOURCE_DIR}/pliocomp.c
+  ${SOURCE_DIR}/putcol.c
+  ${SOURCE_DIR}/putcolb.c
+  ${SOURCE_DIR}/putcold.c
+  ${SOURCE_DIR}/putcole.c
+  ${SOURCE_DIR}/putcoli.c
+  ${SOURCE_DIR}/putcolj.c
+  ${SOURCE_DIR}/putcolk.c
+  ${SOURCE_DIR}/putcoll.c
+  ${SOURCE_DIR}/putcols.c
+  ${SOURCE_DIR}/putcolsb.c
+  ${SOURCE_DIR}/putcolu.c
+  ${SOURCE_DIR}/putcolui.c
+  ${SOURCE_DIR}/putcoluj.c
+  ${SOURCE_DIR}/putcoluk.c
+  ${SOURCE_DIR}/putkey.c
+  ${SOURCE_DIR}/quantize.c
+  ${SOURCE_DIR}/region.c
+  ${SOURCE_DIR}/ricecomp.c
+  ${SOURCE_DIR}/scalnull.c
+  ${SOURCE_DIR}/simplerng.c
+  ${SOURCE_DIR}/swapproc.c
+  ${SOURCE_DIR}/wcssub.c
+  ${SOURCE_DIR}/wcsutil.c
+  ${SOURCE_DIR}/zlib/zcompress.c
+  ${SOURCE_DIR}/zlib/zuncompress.c
+)
+if(UNIX)
+  list(APPEND SRC_FILES ${SOURCE_DIR}/drvrsmem.c)
+endif()
+
+add_library(${LIB_NAME} ${SRC_FILES})
+target_link_libraries(${LIB_NAME} ${M_LIB} ${CFITSIO_LINK_LIBS})
+find_library(M_LIB m)
+if(M_LIB)
+  target_link_libraries(${LIB_NAME} ${M_LIB})
+endif()
+set_target_properties(${LIB_NAME} PROPERTIES VERSION ${${PROJECT_NAME}_VERSION} SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION})
+
+install(TARGETS ${LIB_NAME}
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
 )
 
-ADD_LIBRARY(${LIB_NAME} ${SRC_FILES})
-TARGET_LINK_LIBRARIES(${LIB_NAME} ${M_LIB} ${CFITSIO_LINK_LIBS})
-
-SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES VERSION ${${PROJECT_NAME}_VERSION} SOVERSION ${${PROJECT_NAME}_MAJOR_VERSION})
-install(TARGETS ${LIB_NAME} DESTINATION ${LIB_DESTINATION})
-install(TARGETS ${LIB_NAME}
-                            RUNTIME DESTINATION bin
-                            LIBRARY DESTINATION lib
-                            ARCHIVE DESTINATION lib)
-
-FILE(GLOB H_FILES source_subfolder/fitsio.h source_subfolder/longnam.h)
+file(GLOB H_FILES source_subfolder/fitsio.h source_subfolder/longnam.h)
+if(UNIX)
+  list(APPEND SRC_FILES drvrsmem.h)
+endif()
 install(FILES ${H_FILES} DESTINATION ${INCLUDE_INSTALL_DIR} COMPONENT Devel)
