@@ -13,7 +13,6 @@ option(CFITSIO_USE_SSSE3 "Enable use of instructions in the SSSE3 extended instr
 include(CheckSymbolExists)
 include(CheckCSourceCompiles)
 
-# Define project version
 set(${PROJECT_NAME}_MAJOR_VERSION ${MAJOR_VERSION})
 set(${PROJECT_NAME}_MINOR_VERSION ${MINOR_VERSION})
 set(${PROJECT_NAME}_VERSION ${${PROJECT_NAME}_MAJOR_VERSION}.${${PROJECT_NAME}_MINOR_VERSION})
@@ -159,6 +158,10 @@ if(NOT WIN32)
     check_symbol_exists(connect "sys/types.h;sys/socket.h" CMAKE_HAVE_CONNECT)
     if(CMAKE_HAVE_GETHOSTBYNAME AND CMAKE_HAVE_CONNECT)
       target_compile_definitions(cfitsio PRIVATE "HAVE_NET_SERVICES")
+
+      # Check fmemopen
+      check_symbol_exists(fmemopen "stdio.h" HAVE_FMEMOPEN)
+      target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_FMEMOPEN}>:HAVE_FMEMOPEN>")
     endif()
 
     target_link_libraries(cfitsio PRIVATE CONAN_PKG::libcurl)
@@ -169,15 +172,6 @@ endif()
 # Test for the unix ftruncate function
 check_symbol_exists(ftruncate "unistd.h" HAVE_FTRUNCATE)
 target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_FTRUNCATE}>:HAVE_FTRUNCATE>")
-
-# Some systems define long long for 64-bit ints
-check_c_source_compiles("
-#include <stdlib.h>
-int main() {
-  long long filler;
-  return 0;
-}" HAVE_LONGLONG)
-target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_LONGLONG}>:HAVE_LONGLONG>")
 
 # Check is System V IPC is supported on this machine
 check_c_source_compiles("
@@ -191,31 +185,29 @@ int main() {
   semget(0, 0, 0);
   return 0;
 }" HAVE_SHMEM_SERVICES)
-target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_SHMEM_SERVICES}>:HAVE_SHMEM_SERVICES>")
+if(HAVE_SHMEM_SERVICES)
+  target_compile_definitions(cfitsio PRIVATE "HAVE_SHMEM_SERVICES")
 
-# Some systems define flock_t, for others we have to define it ourselves
-check_c_source_compiles("
-#include <sys/flock.h>
-int main() {
-  flock_t filler;
-  return 0;
-}" HAVE_FLOCK_T)
-target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_FLOCK_T}>:HAVE_FLOCK_T>")
+  # Some systems define flock_t, for others we have to define it ourselves
+  check_c_source_compiles("
+  #include <sys/flock.h>
+  int main() {
+    flock_t filler;
+    return 0;
+  }" HAVE_FLOCK_T)
+  target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_FLOCK_T}>:HAVE_FLOCK_T>")
 
-# Check union semun
-check_c_source_compiles("
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/sem.h>
-int main() {
-  union semun filler;
-  return 0;
-}" HAVE_UNION_SEMUN)
-target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_UNION_SEMUN}>:HAVE_UNION_SEMUN>")
-
-# Check fmemopen
-check_symbol_exists(fmemopen "stdio.h" HAVE_FMEMOPEN)
-target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_FMEMOPEN}>:HAVE_FMEMOPEN>")
+  # Check union semun
+  check_c_source_compiles("
+  #include <sys/ipc.h>
+  #include <sys/shm.h>
+  #include <sys/sem.h>
+  int main() {
+    union semun filler;
+    return 0;
+  }" HAVE_UNION_SEMUN)
+  target_compile_definitions(cfitsio PRIVATE "$<$<BOOL:${HAVE_UNION_SEMUN}>:HAVE_UNION_SEMUN>")
+endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
   target_compile_definitions(cfitsio PRIVATE "cfitsio_EXPORTS")
