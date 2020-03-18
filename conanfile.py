@@ -85,9 +85,7 @@ class CfitsioConan(ConanFile):
         if self._cmake:
             return self._cmake
         self._cmake = CMake(self)
-        self._cmake.definitions["MAJOR_VERSION"] = str(self.version)[0]
-        self._cmake.definitions["MINOR_VERSION"] = str(self.version)[2:4]
-        self._cmake.definitions["CFITSIO_USE_PTHREADS"] = self.options.threadsafe
+        self._cmake.definitions["USE_PTHREADS"] = self.options.threadsafe
         self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.simd_intrinsics == "sse2"
         self._cmake.definitions["CFITSIO_USE_SSSE3"] = self.options.simd_intrinsics == "ssse3"
         if self.settings.os != "Windows":
@@ -100,6 +98,7 @@ class CfitsioConan(ConanFile):
         self.copy("License.txt", dst="licenses", src=self._source_subfolder)
         cmake = self._configure_cmake()
         cmake.install()
+        tools.rmdir(os.path.join(self.package_folder, "lib", "pkgconfig"))
 
     def package_info(self):
         self.cpp_info.libs = tools.collect_libs(self)

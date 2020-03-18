@@ -6,3 +6,5 @@ patches:
   "3.470":
     - patch_file: "patches/windows-use-strtok_s.patch"
       base_path: "source_subfolder"
+    - patch_file: "patches/fix-cmake.patch"
+      base_path: "source_subfolder"
