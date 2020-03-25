@@ -25,7 +25,7 @@ class CfitsioConan(ConanFile):
     default_options = {
         "shared": False,
         "fPIC": True,
-        "threadsafe": False,
+        "threadsafe": True,
         "simd_intrinsics": None,
         "with_bzip2": False,
         "with_curl": False
