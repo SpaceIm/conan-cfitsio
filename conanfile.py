@@ -55,7 +55,7 @@ class CfitsioConan(ConanFile):
     def requirements(self):
         self.requires.add("zlib/1.2.11")
         if self.options.threadsafe and self.settings.os == "Windows" and \
-           not (self.settings.compiler == "gcc" and self.settings.compiler.threads == "posix"):
+           (not self.settings.compiler == "gcc" or self.settings.compiler.threads == "win32"):
             self.requires.add("pthreads4w/3.0.0")
         if self.settings.os != "Windows":
             if self.options.with_bzip2:
