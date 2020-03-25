@@ -17,7 +17,7 @@
  
  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}")
  set (LIB_DESTINATION "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
-@@ -55,11 +57,18 @@ IF (BUILD_SHARED_LIBS)
+@@ -55,11 +57,17 @@ IF (BUILD_SHARED_LIBS)
  ENDIF (BUILD_SHARED_LIBS)
  
  
@@ -29,17 +29,16 @@
  IF (USE_PTHREADS)
 -    FIND_PACKAGE(pthreads REQUIRED)
 -    INCLUDE_DIRECTORIES(${PTHREADS_INCLUDE_DIR})
-+    IF(MSVC)
++    FIND_PACKAGE(Threads REQUIRED)
++    IF(CMAKE_USE_WIN32_THREADS_INIT)
 +        LIST(APPEND LINK_LIBS "CONAN_PKG::pthreads4w")
 +    ELSE()
-+        SET(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-+        FIND_PACKAGE(Threads REQUIRED)
 +        LIST(APPEND LINK_LIBS "Threads::Threads")
 +    ENDIF()
      ADD_DEFINITIONS(-D_REENTRANT)
  ENDIF()
  
-@@ -71,35 +80,27 @@ ELSE()
+@@ -71,35 +79,27 @@ ELSE()
  ENDIF()
  
  # Support for remote file drivers is not implemented for native Windows:
@@ -90,7 +89,7 @@
      editcol.c edithdu.c eval_f.c eval_l.c eval_y.c
      f77_wrap1.c f77_wrap2.c f77_wrap3.c f77_wrap4.c
      fits_hcompress.c fits_hdecompress.c fitscore.c
-@@ -123,27 +124,100 @@ SET(SRC_FILES
+@@ -123,27 +123,100 @@ SET(SRC_FILES
  
  # Only include zlib source files if we are building a shared library.
  # Users will need to link their executable with zlib independently.
@@ -202,7 +201,7 @@
  
      ENABLE_TESTING()
  
-@@ -173,7 +247,7 @@ IF (BUILD_SHARED_LIBS)
+@@ -173,7 +246,7 @@ IF (BUILD_SHARED_LIBS)
        set_target_properties(FPack Funpack PROPERTIES LINK_FLAGS "setargv.obj")
      endif(MSVC)
  
