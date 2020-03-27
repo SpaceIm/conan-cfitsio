@@ -48,6 +48,8 @@ class CfitsioConan(ConanFile):
     def configure(self):
         del self.settings.compiler.libcxx
         del self.settings.compiler.cppstd
+        if self.settings.arch not in ["x86", "x86_64"]:
+            del self.options.simd_intrinsics
         if self.settings.os == "Windows":
             del self.options.with_bzip2
             del self.options.with_curl
@@ -57,11 +59,10 @@ class CfitsioConan(ConanFile):
         if self.options.threadsafe and self.settings.os == "Windows" and \
            (not self.settings.compiler == "gcc" or self.settings.compiler.threads == "win32"):
             self.requires.add("pthreads4w/3.0.0")
-        if self.settings.os != "Windows":
-            if self.options.with_bzip2:
-                self.requires.add("bzip2/1.0.8")
-            if self.options.with_curl:
-                self.requires.add("libcurl/7.68.0")
+        if self.options.get_safe("with_bzip2"):
+            self.requires.add("bzip2/1.0.8")
+        if self.options.get_safe("with_curl"):
+            self.requires.add("libcurl/7.68.0")
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
@@ -87,8 +88,8 @@ class CfitsioConan(ConanFile):
             return self._cmake
         self._cmake = CMake(self)
         self._cmake.definitions["USE_PTHREADS"] = self.options.threadsafe
-        self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.simd_intrinsics == "sse2"
-        self._cmake.definitions["CFITSIO_USE_SSSE3"] = self.options.simd_intrinsics == "ssse3"
+        self._cmake.definitions["CFITSIO_USE_SSE2"] = self.options.get_safe("simd_intrinsics") == "sse2"
+        self._cmake.definitions["CFITSIO_USE_SSSE3"] = self.options.get_safe("simd_intrinsics") == "ssse3"
         if self.settings.os != "Windows":
             self._cmake.definitions["CFITSIO_USE_BZIP2"] = self.options.with_bzip2
             self._cmake.definitions["CFITSIO_USE_CURL"] = self.options.with_curl
